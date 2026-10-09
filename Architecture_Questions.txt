@@ -1,0 +1,127 @@
+The Interviewer Question
+"How do you design an asynchronous, scalable ingestion and AI processing pipeline that balances reliable task execution with high-throughput real-time telemetry, audit logging, and live UI updates?"
+
+The Integrated Architectural Explanation
+[ React + TypeScript Client ]
+    │  ▲
+    │  │ (Server-Sent Events / SSE)
+    │  └─── [ Notification Gateway / SSE Service ]
+    │                      ▲
+    │ (Direct PUT via SAS) │ (Consumer Group)
+    ▼                      │
+[ Azure Blob Storage ]     │
+    │                      │
+    ▼ (Trigger / SAS URL)  │
+[ ASP.NET Core API ]       │
+    │                      │
+    ├── (1. Transactional Commands) ──────> [ Azure Service Bus ]
+    │                                              │
+    │                                              ▼ (FIFO, Locks, Retries)
+    │                                     [ C# Ingestion Worker ]
+    │                                              │ (OCR & Azure OpenAI)
+    │                                              │
+    └── (2. Operational Event Stream) ─────────────┼──────────────┐
+                                                   │              │
+                                                   ▼              ▼
+                                           [ Azure Event Hubs (Partitioned Log) ]
+                                                   │
+                             ┌─────────────────────┴─────────────────────┐
+                             ▼ (Consumer Group A)                        ▼ (Consumer Group B)
+                  [ Notification Gateway ]                     [ Python Stream Worker ]
+                  (Streams live stage events                    (Partition-aware micro-batching)
+                   via SSE to React frontend)                                │
+                                                                ┌────────────┴────────────┐
+                                                                ▼                         ▼
+                                                    [ Azure Cosmos DB ]            [ Azure SQL ]
+                                                    (Unstructured JSON,            (HITL Audit Trail,
+                                                     OCR Bounding Boxes,            Ledger, Financial
+                                                     LLM Traces)                    Aggregates)
+End-to-End Walkthrough to Deliver on the Whiteboard
+1. Ingestion & Dual Messaging Strategy
+Direct-to-Storage Ingestion: The React frontend uploads raw document binaries directly to Azure Blob Storage via a short-lived Shared Access Signature (SAS) URL, preventing large files from congesting API compute threads.
+
+Separation of Concerns (Service Bus vs. Event Hubs):
+
+Azure Service Bus (Commands & Reliable Orchestration): Handles transactional, discrete lifecycle tasks. The API enqueues a message into a Service Bus queue (claim-processing-queue) configured with explicit message locks, idempotency verification, exponential backoff retries, and a dead-letter queue (DLQ) for poison payloads.
+
+Azure Event Hubs (High-Throughput Event Streaming): Handles real-time, non-blocking telemetry and audit logs. Neither user interactions nor worker progress updates wait on relational database writes; they publish directly into an append-only, partitioned event log.
+
+2. Worker Processing & AI Extraction
+A C# .NET Worker Service consumes discrete messages from the Service Bus queue.
+
+The worker passes the document to Azure AI Document Intelligence for OCR and extracts entities via Azure OpenAI using strict JSON schemas.
+
+As the worker navigates each phase (OCR_EXTRACTED, AI_ANALYSIS_COMPLETE), it publishes lightweight status and telemetry events into Azure Event Hubs.
+
+If confidence falls below 90%, the worker marks the claim for human review and writes the core transactional record to the database, completing and acknowledging the Service Bus message.
+
+3. Real-Time Feedback Loop to the User
+An isolated Notification Service reads from an Event Hubs consumer group.
+
+It matches incoming events to active subscriber channels and pushes live pipeline stages (Extracting, Analyzing, Requires Review) straight down to the React frontend over Server-Sent Events (SSE), updating progress indicators without requiring client polling.
+
+4. Asynchronous Data Persistence via Python Stream Worker
+A containerized Python Worker (running on Azure Container Apps or Databricks) reads from a separate Event Hubs consumer group using partition-aware micro-batching (azure-eventhub EventProcessorClient).
+
+Bifurcated Storage Strategy:
+
+Azure Cosmos DB (NoSQL): Receives unstructured and high-variance JSON payloads—raw OCR bounding box coordinates, LLM token prompt/completion traces, and confidence distributions.
+
+Azure SQL (Relational/Ledger): Receives structured HITL operational events, compliance audit logs (documenting precisely which operator modified which field), and aggregated operational metrics.
+
+Proactive Edge Cases & Tradeoffs to Highlight
+At-Least-Once Delivery & Idempotency: Event Hubs can redeliver stream messages during consumer rebalancing. The Python consumer ensures writes are idempotent using upsert operations in Cosmos DB and unique constraint transaction guards in Azure SQL.
+
+Failure Isolation: If Azure OpenAI experiences rate limits or high latency, Polly circuit breakers pause Service Bus queue consumption to prevent cascading failures, while Event Hubs' multi-day retention buffer absorbs incoming user and telemetry streams without data loss.
+
+Even when frontend isn’t your primary specialty, in a **Product System Design** interview at a Staff/Lead level, interviewers probe the frontend through the lens of **systems integration, data flow, and user experience tradeoffs**. They won't ask you to implement custom CSS animations; they will test how you reason across the client-server boundary.
+
+Here are the exact types of frontend questions you should expect and how to answer them:
+
+---
+
+### 1. Connection & Protocol Tradeoffs
+
+* **The Question:** *"Why choose Server-Sent Events (SSE) over WebSockets or simple Polling for this UI?"*
+* **How to Answer:**
+* **SSE vs. WebSockets:** The pipeline requires unidirectional streaming (server $\rightarrow$ client progress updates). SSE runs over standard HTTP/HTTPS, works natively with HTTP/2 multiplexing, handles automatic reconnections out of the box, and doesn't require maintaining a stateful, bi-directional socket protocol through corporate firewalls.
+* **SSE vs. Polling:** Short polling creates unnecessary request overhead and database strain; long polling consumes server threads. SSE maintains a lightweight, open HTTP connection that streams JSON fragments only when an event occurs.
+
+
+
+### 2. Client-Side State & High-Frequency Updates
+
+* **The Question:** *"When thousands of progress events or token streams arrive over SSE, how do you prevent the UI from locking up or re-rendering constantly?"*
+* **How to Answer:**
+* **State Isolation:** Decouple streaming progress state from the main React component tree. Use local component state or a lightweight store (like Zustand) so updates only re-render the small progress bar or status tag, not the parent layout or document viewer.
+* **Throttling/Debouncing:** Buffer incoming stream events on the client side (e.g., using a 100ms throttle) so high-frequency events don't trigger rapid sequential DOM paints.
+* **DOM Virtualization:** For long tables/exception queues, render only the visible rows using a virtualized list (like `react-window` or TanStack Virtual) to maintain steady 60 FPS performance.
+
+
+
+### 3. File Uploads & Network Resilience
+
+* **The Question:** *"What happens if a user tries to upload a 50MB multi-page TIFF/PDF and their connection drops midway?"*
+* **How to Answer:**
+* **Pre-signed Direct Uploads:** Avoid streaming multi-megabyte payloads through our API servers. The frontend requests a pre-signed Azure Blob Storage SAS URL and performs a direct `PUT`.
+* **Chunking & Resumability:** Use the Blob Storage chunk upload API (`Put Block` / `Put Block List`). The client slices the file into 4MB chunks; if chunk 5 fails due to a network blip, the client retries only chunk 5 rather than restarting the entire 50MB upload.
+
+
+
+### 4. Concurrency & Optimistic UI
+
+* **The Question:** *"How does the UI handle optimistic updates if the backend subsequently rejects the claim edit?"*
+* **How to Answer:**
+* **Rollback Cache:** When using tools like TanStack Query, optimistically update the client cache immediately so the operator feels zero latency. Capture a snapshot of previous state in `onMutate`.
+* **Error Handling:** If the mutation returns a `4xx` or `5xx`, execute the rollback (`onError`), restore the previous snapshot, and render an inline toast notification detailing the specific validation failure.
+
+
+
+### 5. Security & Client Storage (HIPAA / Compliance)
+
+* **The Question:** *"Where do you store sensitive patient data or tokens on the client?"*
+* **How to Answer:**
+* **No PHI in Storage:** Never persist Protected Health Information (PHI) in `localStorage` or `sessionStorage` due to susceptibility to Cross-Site Scripting (XSS).
+* **In-Memory Only:** Keep document data strictly in transient React memory.
+* **Secure Cookies:** Store authentication tokens in `HttpOnly`, `Secure`, `SameSite=Strict` cookies so JavaScript cannot access them.
+* **Session Timeout:** Enforce an automated idle timer (e.g., 10 minutes of no user activity) that purges the in-memory cache and returns the user to the login screen.
