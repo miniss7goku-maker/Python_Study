@@ -1121,7 +1121,183 @@ def merge(intervals: list[list[int]]) -> list[list[int]]:
             merged[-1][1] = max(merged[-1][1], end)
 
     return merged
-    pass
+events = [
+    "P1:A100:10:PENDING",
+    "P2:B200:15:APPROVED",
+    "P1:A100:20:APPROVED",
+    "P1:C300:5:REJECTED",
+    "P2:B200:12:PENDING"
+]
+"""
+Consolidated Patient Claim History
+Groups claims by patient_id, resolves each unique procedure to its latest status,
+and returns [patient_id, procedure_count, latest_status] sorted by patient_id.
+"""
+
+from collections import defaultdict
+
+
+def process_claims(events: list[str]) -> list[list[str]]:
+  if not events:
+    return []
+
+  # Structure: patient_id -> procedure_code -> (timestamp, status)
+  patient_records = defaultdict(dict)
+
+  # 1. Parse and resolve each procedure to its most recent state
+  for event in events:
+    patient_id, proc_code, ts_str, status = event.split(":")
+    ts = int(ts_str)
+
+    # If procedure not seen yet, or this record has a newer timestamp, update it
+    if (
+        proc_code not in patient_records[patient_id]
+        or ts > patient_records[patient_id][proc_code][0]
+    ):
+      patient_records[patient_id][proc_code] = (ts, status)
+
+  result = []
+
+  # 2. Iterate through patients in alphabetical order
+  for patient_id in sorted(patient_records.keys()):
+    procs = patient_records[patient_id]
+    procedure_count = str(len(procs))
+
+    # Find the overall latest procedure event for this patient.
+    # Tie-breaker: maximum timestamp first; if tied, lexicographically smaller status.
+    # Sorting key: (timestamp, reversed lexicographical status for descending comparison)
+    # Using min/max with a custom key:
+    best_record = max(
+        procs.values(),
+        # Primary key: ts (higher is better)
+        # Secondary key: status (lexicographically smaller is better, so compare status directly in tie-breaker)
+        key=lambda item: (item[0],),
+    )
+
+    # Resolve exact tie-breaker among records sharing the maximum timestamp
+    max_ts = best_record[0]
+    tied_statuses = [status for ts, status in procs.values() if ts == max_ts]
+    latest_status = min(tied_statuses)  # Lexicographically smallest
+
+    result.append([patient_id, procedure_count, latest_status])
+
+  return result
+"""
+Problem: Longest Substring Without Repeating Characters (LeetCode 3)
+Given a string `s`, find the length of the longest substring without repeating characters.
+
+Example 1:
+Input: s = "abcabcbb"
+Output: 3
+Explanation: The answer is "abc", with the length of 3.
+
+Example 2:
+Input: s = "bbbbb"
+Output: 1
+Explanation: The answer is "b", with the length of 1.
+
+Example 3:
+Input: s = "pwwkew"
+Output: 3
+Explanation: The answer is "wke", with the length of 3.
+Notice that the answer must be a substring, "pwke" is a subsequence and not a substring.
+
+Constraints:
+- 0 <= s.length <= 5 * 10^4
+- `s` consists of English letters, digits, symbols and spaces.
+"""
+
+def length_of_longest_substring(s: str) -> int:
+    map = {}
+    left = 0
+    counter = 0
+    for i in range(len(s)):
+        if s[i]  in map:
+            left = max(left, map[s[i]] + 1)
+        map[s[i]] = i
+        counter = max(counter, i+1-left)
+    return counter
+"""
+Problem: Binary Tree Level Order Traversal (LeetCode 102)
+Given the root of a binary tree, return the level order traversal of its 
+nodes' values (i.e., from left to right, level by level).
+
+Example 1:
+Input: root = [3, 9, 20, null, null, 15, 7]
+Output: [[3], [9, 20], [15, 7]]
+
+Example 2:
+Input: root = [1]
+Output: [[1]]
+
+Example 3:
+Input: root = []
+Output: []
+
+Constraints:
+- The number of nodes in the tree is in the range [0, 2000].
+- -1000 <= Node.val <= 1000
+"""
+
+from collections import deque
+from typing import Optional
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+def level_order(root: Optional[TreeNode]) -> list[list[int]]:
+    result = []
+    if not root:
+        return result
+    queue = deque([root])
+    while queue:
+        arr = []
+        for _ in range(len(queue)):
+            node = queue.popleft()
+            if node.left:
+                queue.append(node.left)
+            if node.right:
+                queue.append(node.right)
+            arr.append(node.val)
+        result.append(arr)
+    return result
+"""
+Problem: Binary Tree Level Order Traversal (LeetCode 102) via DFS
+Traverse recursively by tracking current depth; dynamically allocate buckets
+in `result` whenever a new depth level is reached.
+"""
+
+from typing import Optional
+
+class TreeNode:
+    def __init__(self, val=0, left=None, right=None):
+        self.val = val
+        self.left = left
+        self.right = right
+
+def level_order_dfs(root: Optional[TreeNode]) -> list[list[int]]:
+    result = []
+
+    def dfs(node: Optional[TreeNode], depth: int) -> None:
+        if not node:
+            return
+
+        # Initialize a new sublist when encountering this depth for the first time
+        if len(result) == depth:
+            result.append([])
+
+        # Append node value to its corresponding horizontal level bucket
+        result[depth].append(node.val)
+
+        # Recurse left and right, increasing depth
+        dfs(node.left, depth + 1)
+        dfs(node.right, depth + 1)
+
+    dfs(root, 0)
+    return result
 # =====================================================================
 # Test Suite
 # =====================================================================
