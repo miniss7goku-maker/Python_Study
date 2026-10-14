@@ -1400,6 +1400,84 @@ def daily_temperatures(temperatures: list[int]) -> list[int]:
         stack.append((temp, i))
     return arr
 
+def max_meetings(s: list[int], f: list[int]) -> list[int]:
+    # 1. Bundle finish time, start time, and 1-based meeting number
+    meetings = []
+    for i in range(len(s)):
+        meetings.append((f[i], s[i], i + 1))
+
+    # 2. Sort primarily by finish time
+    meetings.sort(key=lambda x: x[0])
+
+    selected_meetings = []
+    last_finish_time = -1
+
+    # 3. Greedily select non-overlapping meetings
+    for finish, start, meeting_num in meetings:
+        if start >= last_finish_time:
+            selected_meetings.append(meeting_num)
+            last_finish_time = finish
+
+    return selected_meetings
+"""
+Problem: Non-overlapping Intervals (LeetCode 435)
+Given an array of intervals intervals where intervals[i] = [start_i, end_i],
+return the minimum number of intervals you need to remove to make the rest of
+the intervals non-overlapping.
+
+Example:
+Input: intervals = [[1, 2], [2, 3], [3, 4], [1, 3]]
+Output: 1
+Explanation: [1, 3] can be removed and the rest of the intervals are non-overlapping.
+"""
+
+def erase_overlap_intervals(intervals: list[list[int]]) -> int:
+    # Notice: This is the exact inverse of Activity Selection!
+    # Min removals = len(intervals) - (maximum non-overlapping intervals)
+    intervals.sort(key=lambda x: x[1])  # Sort by end time
+    removals = 0
+    last_end = float("-inf")
+
+    for start, end in intervals:
+        if start >= last_end:
+            last_end = end
+        else:
+            removals += 1
+
+    return removals
+"""
+Problem: Meeting Rooms II (LeetCode 253)
+Given an array of meeting time intervals `intervals` where intervals[i] = [start_i, end_i],
+return the minimum number of conference rooms required.
+
+Example 1:
+Input: intervals = [[0, 30], [5, 10], [15, 20]]
+Output: 2
+Explanation:
+- Room 1: [0, 30]
+- Room 2: [5, 10], [15, 20]
+
+Example 2:
+Input: intervals = [[7, 10], [2, 4]]
+Output: 1
+
+Constraints:
+- 1 <= intervals.length <= 10^4
+- 0 <= start_i < end_i <= 10^6
+"""
+
+from typing import List
+
+def min_meeting_rooms(intervals: List[List[int]]) -> int:
+    sorted_intervals = sorted(intervals, key=lambda x: x[0])
+    meeting_rooms = []
+    rooms = 1
+    for (start, end) in sorted_intervals:
+        if meeting_rooms and start >= meeting_rooms[0]:
+            heapq.heappop(meeting_rooms)
+        heapq.heappush(meeting_rooms, end)
+    return len(meeting_rooms)
+
 
     pass
 # =====================================================================
