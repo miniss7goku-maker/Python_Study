@@ -28,6 +28,10 @@ Constraints:
 - 1 <= s.length <= 10^5
 - s[i] is either '(' , ')', or a lowercase English letter.
 """
+import heapq
+from collections import deque, Counter
+from itertools import count
+
 
 def min_remove_to_make_valid(s: str) -> str:
     stringlist = list(s)
@@ -315,3 +319,212 @@ def jump(nums: List[int]) -> int:
       current_end = farthest
 
   return jumps
+"""
+Problem: Minimum Meeting Rooms (Meeting Rooms II / LeetCode 253)
+Given an array of meeting time intervals intervals where intervals[i] = [start_i, end_i],
+return the minimum number of conference rooms required to hold all meetings.
+
+Example 1:
+Input: intervals = [[0, 30], [5, 10], [15, 20]]
+Output: 2
+Explanation:
+- Room 1 hosts: [0, 30]
+- Room 2 hosts: [5, 10], and can later host [15, 20] after [5, 10] ends.
+
+Example 2:
+Input: intervals = [[7, 10], [2, 4]]
+Output: 1
+
+Constraints:
+- 1 <= intervals.length <= 10^4
+- 0 <= start_i < end_i <= 10^6
+"""
+
+from typing import List
+import heapq
+
+
+def min_meeting_rooms(intervals: List[List[int]]) -> int:
+    sorted_intervals = sorted(intervals, key=lambda x: x[0])
+    meeting_rooms = []
+    for start, end in sorted_intervals:
+        if meeting_rooms  and meeting_rooms[0] <= start:
+            heapq.heappop(meeting_rooms)
+        heapq.heappush(meeting_rooms,end)
+    return len(meeting_rooms)
+
+from typing import List
+
+
+def erase_overlap_intervals(intervals: List[List[int]]) -> int:
+  """Example 1:
+
+  Input: intervals = [[1, 2], [2, 3], [3, 4], [1, 3]]
+  Output: 1
+  Explanation: [1, 3] can be removed and the rest of the intervals are
+  non-overlapping.
+
+  Example 2:
+  Input: intervals = [[1, 2], [1, 2], [1, 2]]
+  Output: 2
+
+  Constraints:
+  - 1 <= intervals.length <= 10^5
+  - intervals[i].length == 2
+  - -5 * 10^4 <= start_i < end_i <= 5 * 10^4
+  """
+  sorted_intervals = sorted(intervals, key=lambda x: x[0])
+  removal = 0
+  prev_end = sorted_intervals[0][1]
+  for start, end in sorted_intervals[1:]:
+      if start < prev_end:
+          prev_end = min(prev_end, end)
+          removal +=1
+      else:
+          prev_end = end
+  return removal
+
+from typing import List
+
+
+def least_interval(tasks: List[str], n: int) -> int:
+  """Example 1:
+
+  Input: tasks = ["A", "A", "A", "B", "B", "B"], n = 2
+  Output: 8
+  Explanation:
+  A -> B -> idle -> A -> B -> idle -> A -> B
+  Total time: 8.
+
+  Example 2:
+  Input: tasks = ["A", "C", "A", "B", "D", "B"], n = 1
+  Output: 6
+  Explanation: A -> B -> C -> D -> A -> B
+
+  Constraints:
+  - 1 <= tasks.length <= 10^4
+  - tasks[i] is an uppercase English letter.
+  - 0 <= n <= 100
+  """
+  from collections import Counter, deque
+  import heapq
+
+  def least_interval(tasks: list[str], n: int) -> int:
+      counted_tasks = Counter(tasks)
+
+      # Push negative counts so the largest count is at the top
+      max_heap = [-cnt for cnt in counted_tasks.values()]
+      heapq.heapify(max_heap)
+
+      # Queue will store tuples of: (remaining_count, available_at_time)
+      wait_queue = deque()
+      time = 0
+
+      while max_heap or wait_queue:
+          time += 1
+
+          # 1. Only pop from heap if there is a task ready to execute
+          if max_heap:
+              cnt = heapq.heappop(max_heap) + 1  # +1 because values are negative
+              # Only enqueue if the task still has executions left (cnt < 0)
+              if cnt != 0:
+                  wait_queue.append((cnt, time + n))
+
+          # 2. Check if a cooled-down task is ready to return to the heap
+          if wait_queue and wait_queue[0][1] == time:
+              ready_cnt, _ = wait_queue.popleft()
+              heapq.heappush(max_heap, ready_cnt)
+
+      return time
+
+from typing import List
+
+
+def min_sub_array_len(target: int, nums: List[int]) -> int:
+  """Example 1:
+
+  Input: target = 7, nums = [2, 3, 1, 2, 4, 3]
+  Output: 2
+  Explanation: The subarray [4, 3] has the minimal length under the problem
+  constraints.
+
+  Example 2:
+  Input: target = 4, nums = [1, 4, 4]
+  Output: 1
+
+  Example 3:
+  Input: target = 11, nums = [1, 1, 1, 1, 1, 1, 1, 1]
+  Output: 0
+
+  Constraints:
+  - 1 <= target <= 10^9
+  - 1 <= nums.length <= 10^5
+  - 1 <= nums[i] <= 10^4
+  """
+  if sum(nums) < target:
+      return 0
+  current_sum=0
+  left = 0
+  min_len = float('inf')
+  for right in range(len(nums)):
+      current_sum += nums[right]
+      while current_sum >= target:
+          min_len = min(min_len, right - left + 1)
+          current_sum -= nums[left]
+          left += 1
+  if min_len == float('inf'):
+      return 0
+  return min_len
+
+"""Example 1:
+
+Input: target = 100, startFuel = 10, stations = [[10, 60], [20, 30], [30, 30],
+[60, 40]]
+Output: 2
+Explanation:
+We start with 10 liters of fuel.
+We drive to position 10, expend 10 fuel, and refuel 60 liters (tank = 60).
+We drive to position 60, expend 50 fuel, refuel 40 liters (tank = 50).
+We reach position 100 with 10 liters left.
+
+Example 2:
+Input: target = 100, startFuel = 1, stations = [[10, 100]]
+Output: -1
+Explanation: We can't even reach the first station at position 10.
+
+Constraints:
+- 1 <= target, startFuel <= 10^9
+- 0 <= stations.length <= 500
+- 1 <= position_i < position_{i+1} < target
+- 1 <= fuel_i <= 10^9
+"""
+from typing import List
+import heapq
+
+def min_refuel_stops(
+      target: int, startFuel: int, stations: List[List[int]]
+) -> int:
+  # Max-Heap to store available fuel from passed stations (stored as negative values)
+  max_fuel_heap = []
+
+  current_fuel = startFuel
+  stops = 0
+  i = 0
+  n = len(stations)
+
+  while current_fuel < target:
+      # 1. Drive forward and collect all stations reachable with our current fuel
+      while i < n and stations[i][0] <= current_fuel:
+          # Push fuel as negative to simulate a max-heap in Python
+          heapq.heappush(max_fuel_heap, -stations[i][1])
+          i += 1
+
+      # 2. If we haven't reached target and have no stations to refuel from, we're stuck
+      if not max_fuel_heap:
+          return -1
+
+      # 3. Greedily refuel at the station with the largest fuel capacity passed so far
+      current_fuel += -heapq.heappop(max_fuel_heap)
+      stops += 1
+
+  return stops
