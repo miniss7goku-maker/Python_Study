@@ -528,3 +528,88 @@ def min_refuel_stops(
       stops += 1
 
   return stops
+grid = [
+    [0, 0, 1, 0, 0],
+    [0, 1, 1, 0, 1],
+    [0, 1, 1, 0, 0],
+    [0, 0, 0, 1, 1],
+]
+# Output: 5
+# Explanation: The connected cluster of 1's starting around (0,2), (1,1), (1,2), (2,1), (2,2) has area 5.
+grid2 = [
+    [0, 0, 0],
+    [0, 0, 0],
+]
+# Output: 0
+
+def largest_corrosion_patch(grid: list[list[int]]) -> int:
+  visited = set()
+  max_corrosion = 0
+
+  def dfs(r: int, c: int) -> int:
+    # 1. Boundary & Base checks first:
+    if (
+        r < 0
+        or r >= len(grid)
+        or c < 0
+        or c >= len(grid[0])
+        or (r, c) in visited
+        or grid[r][c] == 0
+    ):
+      return 0
+
+    # 2. Mark this cell visited:
+    visited.add((r, c))
+
+    # 3. Sum 1 (this cell) + all 4 directions:
+    return (
+        1
+        + dfs(r - 1, c)  # up
+        + dfs(r + 1, c)  # down
+        + dfs(r, c - 1)  # left
+        + dfs(r, c + 1)  # right
+    )
+
+  # 4. Traverse every cell on the inspection surface
+  for r in range(len(grid)):
+    for c in range(len(grid[0])):
+      if grid[r][c] == 1 and (r, c) not in visited:
+        current_patch_size = dfs(r, c)
+        max_corrosion = max(max_corrosion, current_patch_size)
+
+  return max_corrosion
+
+def has_critical_anomaly(
+    readings: list[list[float]], window_size: int, k: int, threshold: float
+) -> bool:
+  anomaly = []
+  for i in range(len(readings)):
+       reading = readings[i]
+       if reading[1]< threshold:
+           anomaly.append(reading[0])
+  for i in range(len(anomaly) - k + 1):
+      if anomaly[i + k - 1] - anomaly[i] <= window_size:
+          return True
+  return False
+
+
+def find_inspection_gaps(
+    passes: list[list[float]], pipe_length: float
+) -> list[list[float]]:
+   passes = sorted(passes,key=lambda x: x[0])
+   current_reach = 0.0
+   array = []
+   for start, end in passes:
+       if start - current_reach > 0:
+           unchecked = [current_reach,start]
+           array.append(unchecked)
+       current_reach = max(current_reach,end)
+   if current_reach < pipe_length:
+       array.append([current_reach, pipe_length])
+   return array
+
+
+
+
+
+
